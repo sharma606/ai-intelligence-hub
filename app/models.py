@@ -26,7 +26,7 @@ class Document(Base):
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
     author: Mapped[str | None] = mapped_column(String(255))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
-    content: Mapped[str | None] = mapped_column(Text)
+    article_html: Mapped[str | None] = mapped_column(Text)
     document_type: Mapped[str] = mapped_column(String(50), nullable=False, default="article")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

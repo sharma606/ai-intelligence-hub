@@ -21,7 +21,7 @@ class DocumentRead(BaseModel):
     url: str
     author: str | None
     published_at: datetime | None
-    content: str | None
+    article_html: str | None
     document_type: str
     created_at: datetime
     updated_at: datetime

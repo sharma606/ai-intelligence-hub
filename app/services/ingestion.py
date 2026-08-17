@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Document, Source
+from app.services.relevance import is_relevant
 
 
 logger = logging.getLogger(__name__)
@@ -23,13 +24,6 @@ def parse_published(entry: dict) -> datetime | None:
     if parsed is None:
         return None
     return datetime(*parsed[:6], tzinfo=UTC)
-
-
-def entry_content(entry: dict) -> str | None:
-    content = entry.get("content")
-    if content:
-        return content[0].get("value")
-    return entry.get("summary")
 
 
 def fetch_source(session: Session, source: Source) -> dict[str, int]:
@@ -49,11 +43,14 @@ def fetch_source(session: Session, source: Source) -> dict[str, int]:
         if not url or not title:
             continue
 
+        published_at = parse_published(entry)
+        if not is_relevant(title, published_at):
+            continue
+
         values = {
             "title": title,
             "author": entry.get("author"),
-            "published_at": parse_published(entry),
-            "content": entry_content(entry),
+            "published_at": published_at,
             "document_type": "article",
         }
         document = session.scalar(select(Document).where(Document.url == url))
