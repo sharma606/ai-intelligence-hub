@@ -12,6 +12,12 @@ from app.models import Document, Source
 logger = logging.getLogger(__name__)
 
 
+def fetch_article_page(url: str) -> str:
+    response = httpx.get(url, follow_redirects=True, timeout=20.0)
+    response.raise_for_status()
+    return response.text
+
+
 def parse_published(entry: dict) -> datetime | None:
     parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if parsed is None:

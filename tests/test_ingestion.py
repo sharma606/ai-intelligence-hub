@@ -1,6 +1,9 @@
 from datetime import UTC
 from time import struct_time
 
+import httpx
+
+from app.services import ingestion
 from app.services.ingestion import entry_content, parse_published
 
 
@@ -18,3 +21,14 @@ def test_parse_published_returns_utc_datetime():
     result = parse_published(entry)
     assert result.year == 2026
     assert result.tzinfo == UTC
+
+
+def test_fetch_article_page_returns_html(monkeypatch):
+    class MockResponse:
+        text = "<html><article>Hello</article></html>"
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: MockResponse())
+    assert ingestion.fetch_article_page("https://example.com/article") == "<html><article>Hello</article></html>"

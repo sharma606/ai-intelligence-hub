@@ -24,5 +24,6 @@ Repeat the fetch safely: documents are upserted using their URL rather than dupl
 - `POST /sources/{source_id}/fetch` — synchronously fetches and stores the source feed.
 - `GET /documents?limit=20&offset=0` — returns newest stored documents.
 - `GET /documents/{document_id}` — returns one stored document.
+- `POST /documents/{document_id}/fetch-content` — fetches and stores one article page as raw HTML.
 
 This prototype intentionally has no scheduler, queue, LLM processing, or frontend. A later scheduler can call the existing fetch endpoint or service function without changing the data model.
