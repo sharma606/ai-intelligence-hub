@@ -29,5 +29,3 @@ Repeat the fetch safely: documents are upserted using their URL rather than dupl
 Ingestion applies a small relevance filter before storing a document: the title must contain an AI-related keyword, and dated entries must be within the last 30 days. Entries without a publication date are allowed through. The project does not score traction because the Hugging Face feed does not provide that signal.
 
 The project stores the article page separately in `article_html`. The Hugging Face feed currently supplies metadata (title, URL, author, and publication time), so we do not add an unused summary field. The project currently uses `Base.metadata.create_all()` rather than migrations, so after this schema change a local database volume needs to be recreated before restarting the API.
-
-This first version intentionally has no scheduler, queue, LLM processing, or frontend. A later scheduler can call the existing fetch endpoint or service function without changing the data model.
