@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
+from html.parser import HTMLParser
 import logging
+import re
 
 import feedparser
 import httpx
@@ -11,6 +13,47 @@ from app.services.relevance import is_relevant
 
 
 logger = logging.getLogger(__name__)
+
+
+class _ArticleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.article_depth = 0
+        self.body_depth = 0
+        self.skip_depth = 0
+        self.article_parts: list[str] = []
+        self.body_parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "article":
+            self.article_depth += 1
+        elif tag == "body":
+            self.body_depth += 1
+        if tag in {"script", "style", "noscript"}:
+            self.skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style", "noscript"} and self.skip_depth:
+            self.skip_depth -= 1
+        if tag == "article" and self.article_depth:
+            self.article_depth -= 1
+        elif tag == "body" and self.body_depth:
+            self.body_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self.skip_depth or not data.strip():
+            return
+        if self.article_depth:
+            self.article_parts.append(data)
+        elif self.body_depth:
+            self.body_parts.append(data)
+
+
+def extract_article_text(html: str) -> str:
+    parser = _ArticleTextParser()
+    parser.feed(html)
+    parts = parser.article_parts or parser.body_parts
+    return re.sub(r"\s+", " ", " ".join(parts)).strip()
 
 
 def fetch_article_page(url: str) -> str:

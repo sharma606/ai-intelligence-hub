@@ -10,7 +10,7 @@ from app.database import Base, SessionLocal, engine, get_session
 from app.models import Document, Source
 from app.schemas import DocumentRead, FetchResult, SourceRead
 from app.seed import ensure_initial_source
-from app.services.ingestion import fetch_article_page, fetch_source
+from app.services.ingestion import extract_article_text, fetch_article_page, fetch_source
 
 
 logging.basicConfig(level=logging.INFO)
@@ -79,7 +79,8 @@ def fetch_document_content(document_id: int, session: Session = Depends(get_sess
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
     try:
-        document.content = fetch_article_page(document.url)
+        document.article_html = fetch_article_page(document.url)
+        document.article_text = extract_article_text(document.article_html)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Article fetch failed: {exc}") from exc
     session.commit()

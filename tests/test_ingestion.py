@@ -9,13 +9,19 @@ from app.database import Base
 from app.main import fetch_document_content
 from app.models import Document, Source
 from app.services import ingestion
-from app.services.ingestion import fetch_source, parse_published
+from app.services.ingestion import extract_article_text, fetch_source, parse_published
 from app.services.relevance import is_relevant
 
 
 def test_relevance_requires_ai_keyword():
     assert is_relevant("AI model release", None)
+    assert is_relevant("New GPU inference platform", None)
+    assert is_relevant("AI company reports new revenue", None)
     assert not is_relevant("Company holiday schedule", None)
+
+
+def test_relevance_does_not_match_ai_inside_another_word():
+    assert not is_relevant("Sailing schedule", None)
 
 
 def test_relevance_rejects_old_documents():
@@ -40,6 +46,11 @@ def test_fetch_article_page_returns_html(monkeypatch):
 
     monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: MockResponse())
     assert ingestion.fetch_article_page("https://example.com/article") == "<html><article>Hello</article></html>"
+
+
+def test_extract_article_text_prefers_article_and_ignores_scripts():
+    html = "<body>Navigation<script>ignore()</script><article>Hello <b>world</b></article></body>"
+    assert extract_article_text(html) == "Hello world"
 
 
 def test_repeated_ingestion_updates_by_url_without_duplicates(monkeypatch):
@@ -92,3 +103,4 @@ def test_article_html_is_stored_on_document(monkeypatch):
         result = fetch_document_content(document.id, session)
 
         assert result.article_html == "<html><article>Page</article></html>"
+        assert result.article_text == "Page"
