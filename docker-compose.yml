@@ -19,6 +19,8 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/ai_intelligence
+      OPENAI_API_KEY: ${OPENAI_API_KEY-}
+      OPENAI_MODEL: ${OPENAI_MODEL-gpt-4.1-mini}
     ports:
       - "8000:8000"
     depends_on:

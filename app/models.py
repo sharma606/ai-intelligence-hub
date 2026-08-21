@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,6 +28,11 @@ class Document(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     article_html: Mapped[str | None] = mapped_column(Text)
     article_text: Mapped[str | None] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(Text)
+    why_it_matters: Mapped[str | None] = mapped_column(Text)
+    topics: Mapped[list[str] | None] = mapped_column(JSON)
+    importance: Mapped[int | None] = mapped_column(Integer)
+    analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     document_type: Mapped[str] = mapped_column(String(50), nullable=False, default="article")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

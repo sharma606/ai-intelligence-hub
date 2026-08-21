@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 import logging
 
 import httpx
@@ -8,9 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine, get_session
 from app.models import Document, Source
-from app.schemas import DocumentRead, FetchResult, SourceRead
+from app.schemas import AnalysisResult, DocumentRead, FetchResult, SourceRead
 from app.seed import ensure_initial_source
 from app.services.ingestion import extract_article_text, fetch_article_page, fetch_source
+from app.services.analysis import AnalysisError, analyze_text
 
 
 logging.basicConfig(level=logging.INFO)
@@ -83,6 +85,28 @@ def fetch_document_content(document_id: int, session: Session = Depends(get_sess
         document.article_text = extract_article_text(document.article_html)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Article fetch failed: {exc}") from exc
+    session.commit()
+    session.refresh(document)
+    return document
+
+
+@app.post("/documents/{document_id}/analyze", response_model=DocumentRead)
+def analyze_document(document_id: int, session: Session = Depends(get_session)):
+    document = session.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not document.article_text:
+        raise HTTPException(status_code=400, detail="Fetch article content before analysis")
+    try:
+        result: AnalysisResult = analyze_text(document.article_text)
+    except AnalysisError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    document.summary = result.summary
+    document.why_it_matters = result.why_it_matters
+    document.topics = result.topics
+    document.importance = result.importance
+    document.analyzed_at = datetime.now(UTC)
     session.commit()
     session.refresh(document)
     return document

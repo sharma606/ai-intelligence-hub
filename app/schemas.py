@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SourceRead(BaseModel):
@@ -23,6 +23,11 @@ class DocumentRead(BaseModel):
     published_at: datetime | None
     article_html: str | None
     article_text: str | None
+    summary: str | None
+    why_it_matters: str | None
+    topics: list[str] | None
+    importance: int | None
+    analyzed_at: datetime | None
     document_type: str
     created_at: datetime
     updated_at: datetime
@@ -33,3 +38,10 @@ class FetchResult(BaseModel):
     fetched: int
     created: int
     updated: int
+
+
+class AnalysisResult(BaseModel):
+    summary: str
+    why_it_matters: str
+    topics: list[str]
+    importance: int = Field(ge=1, le=5)

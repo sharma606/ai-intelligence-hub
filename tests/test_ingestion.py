@@ -6,11 +6,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.database import Base
-from app.main import fetch_document_content
+from app.main import analyze_document, fetch_document_content
 from app.models import Document, Source
 from app.services import ingestion
 from app.services.ingestion import extract_article_text, fetch_source, parse_published
 from app.services.relevance import is_relevant
+from app.schemas import AnalysisResult
 
 
 def test_relevance_requires_ai_keyword():
@@ -104,3 +105,36 @@ def test_article_html_is_stored_on_document(monkeypatch):
 
         assert result.article_html == "<html><article>Page</article></html>"
         assert result.article_text == "Page"
+
+
+def test_analysis_is_saved_on_document(monkeypatch):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        source = Source(id=1, name="Test feed", type="atom", base_url="https://example.com/feed.xml")
+        document = Document(
+            source_id=1,
+            title="AI article",
+            url="https://example.com/article",
+            article_text="Article text",
+            document_type="article",
+        )
+        session.add_all([source, document])
+        session.commit()
+        monkeypatch.setattr(
+            "app.main.analyze_text",
+            lambda text: AnalysisResult(
+                summary="Short summary",
+                why_it_matters="Useful context",
+                topics=["inference"],
+                importance=4,
+            ),
+        )
+
+        result = analyze_document(document.id, session)
+
+        assert result.summary == "Short summary"
+        assert result.topics == ["inference"]
+        assert result.importance == 4
+        assert result.analyzed_at is not None

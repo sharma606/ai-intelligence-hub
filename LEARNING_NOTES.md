@@ -26,5 +26,6 @@ Trigger ingestion, inspect the response counters (`fetched`, `created`, `updated
 - Added focused tests for URL-based repeat ingestion and storing fetched article HTML.
 - `Document.article_html` stores raw HTML fetched from an article URL by `POST /documents/{document_id}/fetch-content`.
 - `Document.article_text` stores a small cleaned text extraction from the page. Keeping raw HTML and readable text separate lets us preserve the source while giving future processing a simpler input.
+- The analyze endpoint sends only `article_text` to the model and saves structured results back on the document. The model call is isolated in `app/services/analysis.py`, which makes the API easy to test without spending money on a real request.
 - Ingestion now applies a deliberately simple relevance check: a keyword from the models, agents, infrastructure, applications, or industry categories plus a 30-day recency window when a date is available. We leave traction scoring for a source that actually exposes traction data.
 - The project currently uses `Base.metadata.create_all()` rather than migrations; a local database volume must be recreated after this schema change.
