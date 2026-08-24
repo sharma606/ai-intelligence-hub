@@ -13,6 +13,7 @@ from app.schemas import AnalysisResult, DocumentRead, FetchResult, SourceRead
 from app.seed import ensure_initial_source
 from app.services.ingestion import extract_article_text, fetch_article_page, fetch_source
 from app.services.analysis import AnalysisError, analyze_text
+from app.services.cache import get_analysis_cache
 
 
 logging.basicConfig(level=logging.INFO)
@@ -97,10 +98,15 @@ def analyze_document(document_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Document not found")
     if not document.article_text:
         raise HTTPException(status_code=400, detail="Fetch article content before analysis")
-    try:
-        result: AnalysisResult = analyze_text(document.article_text)
-    except AnalysisError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    cache = get_analysis_cache()
+    result: AnalysisResult | None = cache.get_analysis(document.id, document.article_text)
+    if result is None:
+        try:
+            result = analyze_text(document.article_text)
+        except AnalysisError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        cache.set_analysis(document.id, document.article_text, result)
 
     document.summary = result.summary
     document.why_it_matters = result.why_it_matters

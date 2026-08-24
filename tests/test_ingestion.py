@@ -10,8 +10,22 @@ from app.main import analyze_document, fetch_document_content
 from app.models import Document, Source
 from app.services import ingestion
 from app.services.ingestion import extract_article_text, fetch_source, parse_published
+from app.services.cache import AnalysisCache, analysis_cache_key
 from app.services.relevance import is_relevant
 from app.schemas import AnalysisResult
+
+
+class FakeRedis:
+    def __init__(self):
+        self.data: dict[str, str] = {}
+        self.ttls: dict[str, int | None] = {}
+
+    def get(self, key: str) -> str | None:
+        return self.data.get(key)
+
+    def set(self, name: str, value: str, ex: int | None = None) -> None:
+        self.data[name] = value
+        self.ttls[name] = ex
 
 
 def test_relevance_requires_ai_keyword():
@@ -122,6 +136,7 @@ def test_analysis_is_saved_on_document(monkeypatch):
         )
         session.add_all([source, document])
         session.commit()
+        monkeypatch.setattr("app.main.get_analysis_cache", lambda: AnalysisCache(None))
         monkeypatch.setattr(
             "app.main.analyze_text",
             lambda text: AnalysisResult(
@@ -138,3 +153,104 @@ def test_analysis_is_saved_on_document(monkeypatch):
         assert result.topics == ["inference"]
         assert result.importance == 4
         assert result.analyzed_at is not None
+
+
+def _analysis_document(session: Session) -> Document:
+    source = Source(id=1, name="Test feed", type="atom", base_url="https://example.com/feed.xml")
+    document = Document(
+        source_id=1,
+        title="AI article",
+        url="https://example.com/article",
+        article_text="Article text",
+        document_type="article",
+    )
+    session.add_all([source, document])
+    session.commit()
+    return document
+
+
+def test_analysis_cache_miss_calls_llm_and_stores_result(monkeypatch):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    fake_redis = FakeRedis()
+    calls: list[str] = []
+
+    monkeypatch.setattr("app.main.get_analysis_cache", lambda: AnalysisCache(fake_redis))
+    monkeypatch.setattr(
+        "app.main.analyze_text",
+        lambda text: calls.append(text) or AnalysisResult(
+            summary="Short summary",
+            why_it_matters="Useful context",
+            topics=["inference"],
+            importance=4,
+        ),
+    )
+
+    with Session(engine) as session:
+        document = _analysis_document(session)
+        result = analyze_document(document.id, session)
+
+        assert len(calls) == 1
+        assert result.summary == "Short summary"
+        cache_key = analysis_cache_key(document.id, "Article text")
+        cached = fake_redis.get(cache_key)
+        assert cached is not None
+        assert "Short summary" in cached
+        assert fake_redis.ttls[cache_key] == 86400
+
+
+def test_analysis_cache_hit_skips_llm(monkeypatch):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    fake_redis = FakeRedis()
+    calls: list[str] = []
+    cached_result = AnalysisResult(
+        summary="Cached summary",
+        why_it_matters="Cached context",
+        topics=["agents"],
+        importance=5,
+    )
+
+    monkeypatch.setattr("app.main.get_analysis_cache", lambda: AnalysisCache(fake_redis))
+    monkeypatch.setattr(
+        "app.main.analyze_text",
+        lambda text: calls.append(text) or cached_result,
+    )
+
+    with Session(engine) as session:
+        document = _analysis_document(session)
+        analyze_document(document.id, session)
+        result = analyze_document(document.id, session)
+
+        assert len(calls) == 1
+        assert result.summary == "Cached summary"
+        assert result.topics == ["agents"]
+        assert result.importance == 5
+
+
+def test_analysis_cache_misses_when_article_text_changes(monkeypatch):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    fake_redis = FakeRedis()
+    calls: list[str] = []
+
+    monkeypatch.setattr("app.main.get_analysis_cache", lambda: AnalysisCache(fake_redis))
+    monkeypatch.setattr(
+        "app.main.analyze_text",
+        lambda text: calls.append(text) or AnalysisResult(
+            summary=f"Summary for {text}",
+            why_it_matters="Useful context",
+            topics=["inference"],
+            importance=3,
+        ),
+    )
+
+    with Session(engine) as session:
+        document = _analysis_document(session)
+        analyze_document(document.id, session)
+        document.article_text = "Updated article text"
+        session.commit()
+        result = analyze_document(document.id, session)
+
+        assert calls == ["Article text", "Updated article text"]
+        assert result.summary == "Summary for Updated article text"
