@@ -1,6 +1,7 @@
 import os
 
-from openai import OpenAI
+from google import genai
+from google.genai import types
 
 from app.schemas import AnalysisResult
 
@@ -10,30 +11,31 @@ class AnalysisError(Exception):
 
 
 def analyze_text(article_text: str) -> AnalysisResult:
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise AnalysisError("OPENAI_API_KEY is not configured")
+        raise AnalysisError("GEMINI_API_KEY is not configured")
 
-    client = OpenAI(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     try:
-        response = client.responses.parse(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-            input=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Analyze this AI industry article. Return a concise summary, explain why it matters, "
-                        "choose a few useful topics, and rate importance from 1 to 5. Use only information "
-                        "supported by the article."
-                    ),
-                },
-                {"role": "user", "content": article_text},
-            ],
-            text_format=AnalysisResult,
+        response = client.models.generate_content(
+            model=os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"),
+            contents=article_text,
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "Analyze this AI industry article. Return a concise summary, explain why it matters, "
+                    "choose a few useful topics, and rate importance from 1 to 5. Use only information "
+                    "supported by the article."
+                ),
+                response_mime_type="application/json",
+                response_schema=AnalysisResult,
+            ),
         )
     except Exception as exc:
         raise AnalysisError(f"LLM analysis failed: {exc}") from exc
 
-    if response.output_parsed is None:
+    parsed = response.parsed
+    if parsed is None:
         raise AnalysisError("LLM returned no structured analysis")
-    return response.output_parsed
+    if isinstance(parsed, AnalysisResult):
+        return parsed
+    return AnalysisResult.model_validate(parsed)

@@ -31,8 +31,8 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/ai_intelligence
       REDIS_URL: redis://redis:6379/0
       ANALYSIS_CACHE_TTL_SECONDS: ${ANALYSIS_CACHE_TTL_SECONDS-86400}
-      OPENAI_API_KEY: ${OPENAI_API_KEY-}
-      OPENAI_MODEL: ${OPENAI_MODEL-gpt-4.1-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY-}
+      GEMINI_MODEL: ${GEMINI_MODEL-gemini-3.1-flash-lite}
     ports:
       - "8000:8000"
     depends_on:

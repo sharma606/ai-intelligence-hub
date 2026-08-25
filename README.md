@@ -4,6 +4,8 @@ The first vertical slice ingests the [Hugging Face blog Atom feed](https://huggi
 
 ## Run
 
+Copy `.env.example` to `.env` in this same folder (the file name starts with a dot, so Finder hides it). Put your Gemini key in `.env`. Then:
+
 ```bash
 docker compose up --build
 ```
@@ -31,4 +33,4 @@ Ingestion applies a small relevance filter before storing a document. It recogni
 
 The project keeps both the original page in `article_html` and a cleaned version in `article_text`. The Hugging Face feed currently supplies metadata (title, URL, author, and publication time), so we do not add an unused summary field. The project currently uses `Base.metadata.create_all()` rather than migrations, so after this schema change a local database volume needs to be recreated before restarting the API.
 
-Analysis uses the OpenAI Responses API with structured output. Set `OPENAI_API_KEY` in your environment before calling the analyze endpoint. The endpoint is manual, so no model request happens during startup or ingestion. Redis is a cache only: it has no volume, so a Redis restart just means the next analyze call pays for the model again and then refills the cache.
+Analysis uses the Gemini API with structured JSON. Copy `.env.example` to `.env`, set `GEMINI_API_KEY` there, and do not commit `.env`. The endpoint is manual, so no model request happens during startup or ingestion. Redis is a cache only: it has no volume, so a Redis restart just means the next analyze call pays for the model again and then refills the cache.
