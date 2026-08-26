@@ -11,9 +11,10 @@ from app.database import Base, SessionLocal, engine, get_session
 from app.models import Document, Source
 from app.schemas import AnalysisResult, DocumentRead, FetchResult, SourceRead
 from app.seed import ensure_initial_source
-from app.services.ingestion import extract_article_text, fetch_article_page, fetch_source
 from app.services.analysis import AnalysisError, analyze_text
+from app.services.article_text import extract_article_text
 from app.services.cache import get_analysis_cache
+from app.services.ingestion import fetch_article_page, fetch_source
 
 
 logging.basicConfig(level=logging.INFO)

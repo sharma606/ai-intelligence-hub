@@ -9,7 +9,7 @@ from app.database import Base
 from app.main import analyze_document, fetch_document_content
 from app.models import Document, Source
 from app.services import ingestion
-from app.services.ingestion import extract_article_text, fetch_source, parse_published
+from app.services.ingestion import fetch_source, parse_published
 from app.services.cache import AnalysisCache, analysis_cache_key
 from app.services.relevance import is_relevant
 from app.schemas import AnalysisResult
@@ -61,25 +61,6 @@ def test_fetch_article_page_returns_html(monkeypatch):
 
     monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: MockResponse())
     assert ingestion.fetch_article_page("https://example.com/article") == "<html><article>Hello</article></html>"
-
-
-def test_extract_article_text_prefers_article_and_ignores_scripts():
-    html = "<body>Navigation<script>ignore()</script><article>Hello <b>world</b></article></body>"
-    assert extract_article_text(html) == "Hello world"
-
-
-def test_extract_article_text_prefers_blog_content_over_card_articles():
-    html = """
-    <body>
-      <nav>Home</nav>
-      <article class="overview-card-wrapper">CohereLabs/cohere-transcribe-03-2026 Automatic Speech Recognition</article>
-      <div class="blog-content prose">The actual post about ASR benchmarks.</div>
-    </body>
-    """
-    text = extract_article_text(html)
-    assert "actual post about ASR benchmarks" in text
-    assert "CohereLabs" not in text
-    assert "Home" not in text
 
 
 def test_repeated_ingestion_updates_by_url_without_duplicates(monkeypatch):
