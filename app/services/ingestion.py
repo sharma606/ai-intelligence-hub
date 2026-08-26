@@ -16,43 +16,65 @@ logger = logging.getLogger(__name__)
 
 
 class _ArticleTextParser(HTMLParser):
+    SKIP_TAGS = {"script", "style", "noscript", "nav", "footer", "aside"}
+    VOID_TAGS = {"img", "br", "hr", "meta", "input", "link", "source", "area", "col", "embed", "wbr"}
+
     def __init__(self) -> None:
         super().__init__()
-        self.article_depth = 0
-        self.body_depth = 0
-        self.skip_depth = 0
+        self.skip_stack: list[bool] = []
+        self.region_stack: list[str] = []
+        self.blog_parts: list[str] = []
         self.article_parts: list[str] = []
         self.body_parts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag == "article":
-            self.article_depth += 1
-        elif tag == "body":
-            self.body_depth += 1
-        if tag in {"script", "style", "noscript"}:
-            self.skip_depth += 1
+        classes = (dict(attrs).get("class") or "").split()
+        parent_skip = bool(self.skip_stack and self.skip_stack[-1])
+        skip = parent_skip or tag in self.SKIP_TAGS or "overview-card-wrapper" in classes
+        self.skip_stack.append(skip)
+
+        region = self.region_stack[-1] if self.region_stack else ""
+        if not skip:
+            if "blog-content" in classes:
+                region = "blog"
+            elif tag == "article" and region != "blog":
+                region = "article"
+            elif tag == "body" and not region:
+                region = "body"
+        self.region_stack.append(region)
+
+        if tag in self.VOID_TAGS:
+            self._pop_element()
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in {"script", "style", "noscript"} and self.skip_depth:
-            self.skip_depth -= 1
-        if tag == "article" and self.article_depth:
-            self.article_depth -= 1
-        elif tag == "body" and self.body_depth:
-            self.body_depth -= 1
+        if tag in self.VOID_TAGS:
+            return
+        self._pop_element()
+
+    def _pop_element(self) -> None:
+        if self.skip_stack:
+            self.skip_stack.pop()
+        if self.region_stack:
+            self.region_stack.pop()
 
     def handle_data(self, data: str) -> None:
-        if self.skip_depth or not data.strip():
+        if not data.strip():
             return
-        if self.article_depth:
+        if self.skip_stack and self.skip_stack[-1]:
+            return
+        region = self.region_stack[-1] if self.region_stack else ""
+        if region == "blog":
+            self.blog_parts.append(data)
+        elif region == "article":
             self.article_parts.append(data)
-        elif self.body_depth:
+        elif region == "body":
             self.body_parts.append(data)
 
 
 def extract_article_text(html: str) -> str:
     parser = _ArticleTextParser()
     parser.feed(html)
-    parts = parser.article_parts or parser.body_parts
+    parts = parser.blog_parts or parser.article_parts or parser.body_parts
     return re.sub(r"\s+", " ", " ".join(parts)).strip()
 
 

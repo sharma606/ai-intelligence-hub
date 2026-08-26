@@ -68,6 +68,20 @@ def test_extract_article_text_prefers_article_and_ignores_scripts():
     assert extract_article_text(html) == "Hello world"
 
 
+def test_extract_article_text_prefers_blog_content_over_card_articles():
+    html = """
+    <body>
+      <nav>Home</nav>
+      <article class="overview-card-wrapper">CohereLabs/cohere-transcribe-03-2026 Automatic Speech Recognition</article>
+      <div class="blog-content prose">The actual post about ASR benchmarks.</div>
+    </body>
+    """
+    text = extract_article_text(html)
+    assert "actual post about ASR benchmarks" in text
+    assert "CohereLabs" not in text
+    assert "Home" not in text
+
+
 def test_repeated_ingestion_updates_by_url_without_duplicates(monkeypatch):
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
