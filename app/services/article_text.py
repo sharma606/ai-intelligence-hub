@@ -4,14 +4,16 @@ from typing import NamedTuple
 
 
 SKIP_TAGS = frozenset({"script", "style", "noscript", "nav", "footer", "aside"})
+# <img> and friends never emit an end tag, so we close them ourselves
 VOID_TAGS = frozenset({"img", "br", "hr", "meta", "input", "link", "source", "area", "col", "embed", "wbr"})
+# HF model cards are <article class="overview-card-wrapper">. those are not the post.
 SKIP_CLASSES = frozenset({"overview-card-wrapper"})
 BLOG_CLASS = "blog-content"
 
 
 class _OpenTag(NamedTuple):
     skip: bool
-    region: str
+    region: str  # "blog", "article", "body", or ""
 
 
 class _ArticleTextParser(HTMLParser):
@@ -50,6 +52,7 @@ class _ArticleTextParser(HTMLParser):
 
         if parent.skip or tag in SKIP_TAGS or SKIP_CLASSES.intersection(classes):
             return _OpenTag(skip=True, region=parent.region)
+        # blog-content is the actual post. <article> is only a fallback.
         if BLOG_CLASS in classes:
             return _OpenTag(skip=False, region="blog")
         if tag == "article" and parent.region != "blog":
@@ -59,6 +62,7 @@ class _ArticleTextParser(HTMLParser):
         return _OpenTag(skip=False, region=parent.region)
 
     def _close(self) -> None:
+        # end tags have no class, so skip/region live on this stack instead
         if self._open:
             self._open.pop()
 
@@ -67,5 +71,6 @@ def extract_article_text(html: str) -> str:
     parser = _ArticleTextParser()
     parser.feed(html)
     parser.close()
+    # prefer the real post, then a generic article, then the whole body
     parts = parser.blog_parts or parser.article_parts or parser.body_parts
     return re.sub(r"\s+", " ", " ".join(parts)).strip()
